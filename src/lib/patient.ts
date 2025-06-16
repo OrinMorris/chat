@@ -1,29 +1,30 @@
-import { Patient, defaultPatient } from '../types/patient';
+import { defaultPatient, Patient } from '../types/patient';
 
-const STORAGE_KEY = "patient";
-    
+const PATIENT_KEY = 'patient';
+
 export function getPatient(): Patient {
+    if (typeof window === 'undefined') 
+        return defaultPatient;
+
+    const stored = localStorage.getItem(PATIENT_KEY);
+    return stored ? JSON.parse(stored) : null;
+}
+
+export function setPatient(patient: Patient): void {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(PATIENT_KEY, JSON.stringify(patient));
+}
+
+export async function resetPatient(): Promise<void> {
+    
+    if (typeof window === 'undefined') 
+        return;
+    
+    localStorage.removeItem(PATIENT_KEY);
+
     try {
-        const found = localStorage.getItem(STORAGE_KEY);
-        if (found) {
-            return JSON.parse(found);
-        }
-    } catch {
+        await fetch('/api/openai', { method: 'DELETE' });
+    } catch (error) {
+        console.error('Error resetting response ID:', error);
     }
-    return defaultPatient;
-}
-
-function setPatient(patient: Patient): Patient {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(patient));
-    return patient;
-}
-
-export function updatePatient(partial: Partial<Patient>) {
-    const current = getPatient();
-    const updated = { ...current, ...partial };
-    return setPatient(updated);
-}
-
-export function resetPatient(): Patient {
-    return setPatient(defaultPatient);
 } 

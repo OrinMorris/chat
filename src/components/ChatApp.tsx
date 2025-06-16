@@ -1,17 +1,15 @@
 'use client'
 import { useState, useEffect, useRef } from "react";
-import { Patient } from '../types/patient';
-import { Message } from '../types/message';
-import { handleChatMessage, handleReset } from '../lib/chatbot';
-import { usePersistedState } from '../lib/hooks';
+import { Patient, defaultPatient } from '../types/patient';
+import { addPatientMessage, processPatientResponse } from '../lib/session';
+import { resetPatient } from "../lib/patient";
 
 export default function ChatApp() {
     // State
     const [isMounted, setIsMounted] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
     const [userInput, setUserInput] = useState("");
-    const [chatLog, setChatLog] = usePersistedState<Message[]>("chat", []);
-    const [patient, setPatientState] = useState<Patient>();
+    const [patient, setPatient] = useState<Patient>(defaultPatient);
     const chatContainerRef = useRef<HTMLDivElement>(null);
 
     // Effects
@@ -23,37 +21,41 @@ export default function ChatApp() {
         if (chatContainerRef.current) {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
-    }, [chatLog]);
+    }, [patient?.conversation]);
     
-    useEffect(() => {
-        localStorage.setItem("feedbackLog", JSON.stringify(patient));   
-    }, [patient]);
-   
     // Custom chat message handler
     const handleCustomChatMessage = async () => {
         if (!userInput.trim()) return;
 
+        const updatedPatient = {
+            ...patient,
+            conversation: [
+                ...(patient.conversation || []),
+                {
+                    timestamp: new Date().toISOString(),
+                    userInput: userInput,
+                    systemResponse: "",
+                }
+            ]
+        };
+        setPatient(updatedPatient);
         setUserInput("");
-        setIsTyping(true);
         
         try {
-            const systemResponse = await handleChatMessage(
-                userInput,
-                setUserInput,
-                setChatLog,
-                setIsTyping,
-                setPatientState
-            );
-
+            setIsTyping(true);
+            const patientWithSystemResponse = await processPatientResponse(userInput, updatedPatient);
+            setPatient(patientWithSystemResponse);
         } catch (error) {
             console.error('Error in chat:', error);
-            setChatLog(prev => [
-                ...prev,
-                { source: "system", content: "I apologize, but I encountered an error. Could you please try again?" }
-            ]);
         } finally {
             setIsTyping(false);
         }
+    };
+
+    const handleReset = async () => {
+        await resetPatient();
+        setUserInput("");
+        setPatient(defaultPatient);
     };
 
     // Render
@@ -62,19 +64,19 @@ export default function ChatApp() {
     }
 
     return (
-        <main>
-            <div className="grid grid-cols-2 gap-4 p-4 h-screen bg-gray-100">
+        <main className="h-screen overflow-hidden">
+            <div className="grid grid-cols-2 gap-4 p-4 h-full bg-gray-100">
                 {/* Patient Panel with Actions */}
-                <div className="flex flex-col h-full">
+                <div className="flex flex-col h-full overflow-hidden">
                     {/* Patient Status */}
-                    <div className="bg-white rounded-2xl shadow flex flex-col p-4 h-full">
-                        <h2 className="text-xl font-semibold mb-2">Current Topic: Foobar</h2>
+                    <div className="bg-white rounded-2xl shadow flex flex-col p-4 h-full overflow-hidden">
+                        <h2 className="text-xl font-semibold mb-2">Current Topic: {patient.topic}</h2>
                         
                         {/* Topic Progress */}
                         <div className="mb-4">
                             <h3 className="text-sm font-medium mb-2">Expected Information:</h3>
                             <ul className="text-sm space-y-1">
-                              
+                                {/* Add expected information based on topic */}
                             </ul>
                         </div>
 
@@ -90,7 +92,7 @@ export default function ChatApp() {
                         <div className="flex justify-end gap-2 mt-4">
                             <button
                                 className="bg-gray-300 hover:bg-red-300 text-sm px-3 py-1 rounded shadow"
-                                onClick={() => handleReset(setUserInput, setChatLog)}
+                                onClick={handleReset}
                             >
                                 Reset
                             </button>
@@ -105,30 +107,30 @@ export default function ChatApp() {
                 </div>
 
                 {/* Chat Window */}            
-                <div className="bg-white rounded-2xl shadow flex flex-col p-4 h-full overflow-y-auto">
+                <div className="bg-white rounded-2xl shadow flex flex-col p-4 h-full overflow-hidden">
                     <h2 className="text-xl font-semibold mb-4">AI-Powered Chat</h2>
 
-                    <div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-2 mb-4">
-                        {chatLog.map((entry, index) => {
-                            const isUser = entry.source === "user";
-                            const content = entry.content; 
-                            return (
-                                <div
-                                    key={index}
-                                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-                                >
-                                    <div
-                                        className={`max-w-md px-4 py-2 rounded-2xl shadow ${
-                                            isUser
-                                                ? 'bg-blue-500 text-white rounded-br-none'
-                                                : 'bg-gray-200 text-gray-800 rounded-bl-none'
-                                        }`}
-                                    >
-                                        {content}
+                    <div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-4 mb-4">
+                        {patient.conversation?.map((entry, index) => (
+                            <div key={index}>
+                                {/* User Message */}
+                                {(!entry.userInput && index === 0 ? null : (
+                                    <div className="flex justify-end">
+                                        <div className="max-w-md px-4 py-2 rounded-2xl shadow bg-blue-500 text-white rounded-br-none">
+                                            {entry.userInput}
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                ))}
+                                {/* System Response */}
+                                {entry.systemResponse && (
+                                    <div className="flex justify-start">
+                                        <div className="max-w-md px-4 py-2 rounded-2xl shadow bg-gray-200 text-gray-800 rounded-bl-none">
+                                            {entry.systemResponse}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
 
                         {isTyping && (
                             <div className="bg-gray-200 px-4 py-2 rounded-2xl max-w-xs self-start flex items-center gap-1">
@@ -164,4 +166,21 @@ export default function ChatApp() {
             </div>
         </main>
     );
+}
+
+export async function callOpenAI(instructions: string, input: string): Promise<string> {
+    const response = await fetch('/api/openai', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ instructions, message: input }),
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to get response from OpenAI');
+    }
+
+    const data = await response.json();
+    return data.response;
 } 
