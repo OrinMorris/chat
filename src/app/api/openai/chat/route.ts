@@ -18,7 +18,7 @@ async function setResponseIdCookie(responseId: string) {
     });
 }
 
-async function getResponseIdCookie(): Promise<string | undefined> {
+export async function getResponseIdCookie(): Promise<string | undefined> {
     const cookieStore = await cookies();
     return cookieStore.get(RESPONSE_ID_KEY)?.value;
 }

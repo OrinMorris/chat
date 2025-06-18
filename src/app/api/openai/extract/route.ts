@@ -1,34 +1,62 @@
 import OpenAI from "openai";
+import { NextResponse } from "next/server";
+import { getResponseIdCookie } from "../chat/route";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // make sure this is set
-});
 
-const conversation = `
-Patient: This morning I checked my blood sugar and it was 135.
-Chatbot: Got it. Anything else you’d like to share?
-Patient: I weighed myself too — 202 pounds.
-Chatbot: Any exercise today?
-Patient: Not yet, maybe later.
-`;
+export async function POST(req: Request) {
+  try {
+    const { message, metrics } = await req.json();
 
-const response = await openai.chat.completions.create({
-  model: "gpt-4",
-  temperature: 0.3,
-  messages: [
-    {
-      role: "system",
-      content: `You are a medical assistant. Extract all patient-reported health metrics from the conversation.`,
-    },
-    {
-      role: "user",
-      content: `Conversation:\n${conversation}\n\nInstructions: 
-Extract all structured health metrics (like blood glucose, weight, blood pressure, mood, exercise, etc.) and return them as a JSON object. 
+    if (!metrics || typeof metrics !== "string") {
+      return NextResponse.json({ error: "Missing or invalid 'metrics' parameter" }, { status: 400 });
+    }
 
-Each metric should be a field. Add a "status" field:
-- "complete" if all expected metrics are captured,
-- "incomplete" if some common metrics are missing,
-- "stop" if the patient abandoned the topic.`,
-    },
-  ],
-});
+    const metricList = metrics.split(',').map(m => m.trim()).filter(Boolean);
+
+    const jsonTemplate = metricList.map(metric => `"${metric}": "<value or null>"`).join(",\n  ");
+    const metricExtractionInstructions = `
+You are a clinical assistant. Extract the values for the following metrics mentioned in the conversation: ${metricList.join(", ")}.
+
+Respond only in a JSON object with the following format:
+{
+  ${jsonTemplate},
+  "status": "complete" | "incomplete"
+}
+
+Only return this JSON object and nothing else. 
+"status" should be "complete" if ALL of the following metrics are present: ${metricList.join(", ")}.
+    `.trim();
+
+    const previousResponseId = await getResponseIdCookie();
+
+    const response = await new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    }).chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        { role: "system", content: metricExtractionInstructions },
+        { role: "user", content: message }
+      ]
+    });
+
+    const outputText = response.choices[0].message?.content || "";
+
+    let extractedData = null;
+    try {
+      extractedData = JSON.parse(outputText);
+    } catch (e) {
+      extractedData = { error: "Failed to parse LLM output" };
+    }
+
+    return NextResponse.json({
+      response: outputText,
+      metrics: extractedData,
+      responseID: response.id
+    });
+
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
+  }
+}
+

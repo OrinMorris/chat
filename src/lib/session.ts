@@ -1,7 +1,6 @@
 import { defaultPatient, Patient } from '../types/patient';
+import { Topics } from '../types/topic';
 import { getPatient, setPatient } from './patient';
-import { extractPatientData, generateSystemResponse, lookupTopic } from './topics';
-import OpenAI from 'openai';
 
 export async function addPatientMessage(userInput: string): Promise<Patient> {
     const patient = await getPatient() || defaultPatient;
@@ -71,25 +70,27 @@ export async function generateChatResponse(instructions: string, input: string):
 }
 
 export async function processPatientResponse(input: string, patient: Patient): Promise<Patient> {
-    const currentTopic = lookupTopic(patient.topic);
+    const currentTopic = Topics[patient.topic as keyof typeof Topics];
 
     if (!currentTopic) {
         const systemResponse = "nothing left to talk about";
         return addSystemMessage(input, systemResponse, patient);
-    } else {
-        const instructions = "Work as a clinical chatbot assistant to request the patients's weight in pounds and height in feet and inches. Don't discuss other topics";
-        const systemResponse = await generateChatResponse(instructions, input);
-        return addSystemMessage(input, systemResponse, patient);
     }
+
+    const extractedData = await extractChatData(currentTopic.metrics, patient);
+    const instructions = currentTopic.prompt;
+    const systemResponse = await generateChatResponse(instructions, input);
+    return addSystemMessage(input, systemResponse, patient);
+
 } 
 
-export async function extractChatData(instructions: string, metrics: string, conversation: string): Promise<string> {
+export async function extractChatData(metrics: string, patient: Patient): Promise<string> {
     const response = await fetch('/api/openai/extract', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ instructions, metrics: metrics, conversation: conversation }),
+        body: JSON.stringify({ metrics: metrics, conversation: patient.conversation }),
     });
 
     if (!response.ok) {
