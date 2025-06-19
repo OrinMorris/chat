@@ -1,7 +1,15 @@
-import { defaultPatient, Patient } from '../types/patient';
-import { Topics } from '../types/topic';
-import { getPatient, setPatient } from './patient';
+import { Conversation } from "../types/conversation";
 
+
+
+
+
+
+
+
+
+
+/*
 export async function addPatientMessage(userInput: string): Promise<Patient> {
     const patient = await getPatient() || defaultPatient;
     
@@ -100,3 +108,6 @@ export async function extractChatData(metrics: string, patient: Patient): Promis
     const data = await response.json();
     return data.response;
 }
+
+
+*/

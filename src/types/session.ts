@@ -1,5 +1,7 @@
 export type SessionData = {
     sessionId: string;
+/*
+
     patient: {
         topic: string;
         data: string;
@@ -9,5 +11,6 @@ export type SessionData = {
             systemResponse: string;
         }>;
     };
+*/
     lastUpdated: string;
 };

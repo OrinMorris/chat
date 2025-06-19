@@ -31,14 +31,14 @@ async function deleteResponseIdCookie() {
 
 export async function POST(req: Request) {
     try {
-        const { instructions, message } = await req.json();
+        const { input } = await req.json();
         
         const previousResponseId = await getResponseIdCookie();
         const request = {
             model: "gpt-4",
-            input: message,
+            input: input,
             store: true,
-            instructions: instructions,
+            instructions: "respond with something funny",
             previous_response_id: previousResponseId
         }
 

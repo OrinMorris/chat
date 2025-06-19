@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { getResponseIdCookie } from "../chat/route";
+import { getResponseIdCookie } from "../../chat/route";
 
 
 export async function POST(req: Request) {

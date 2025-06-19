@@ -3,7 +3,6 @@ import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { SessionData } from '@/src/types/session';
 import { generateSystemResponse, updateCurrentSession } from '@/src/server/session';
-import { defaultPatient } from '@/src/types/patient';
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
@@ -39,7 +38,6 @@ export async function getSessionCookie(): Promise<SessionData> {
 
     return {
         sessionId: crypto.randomUUID(),
-        patient: defaultPatient,
         lastUpdated: new Date().toISOString()
     };
 }
@@ -50,7 +48,7 @@ async function deleteSessionCookie() {
 }
 
 // ========================================================================================================
-// Session State Management
+// Session Response Generation
 // ========================================================================================================
 
 export async function POST(req: Request) {
